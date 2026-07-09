@@ -3,6 +3,10 @@
 Turns recent reporting from independent and investigative journalists — pulled from
 their social media (Bluesky) and newsletters (RSS) — into a two-host conversational
 podcast episode, published to a GitHub Pages site with a subscribable RSS feed.
+**100% free: no API keys, no subscriptions, no ffmpeg.**
+
+- **Listen:** https://krishna-coder6111.github.io/true-news-podcast/
+- **Subscribe in a podcast app:** https://krishna-coder6111.github.io/true-news-podcast/feed.xml
 
 ## How it works
 
@@ -14,10 +18,12 @@ sources.yaml -> fetch (Bluesky + RSS) -> two-host script -> MP3 (edge-tts) -> do
    from the public AppView API (no account or key needed); newsletters come from their
    RSS feeds. Items outside the lookback window are dropped, reposts and duplicates are
    skipped, and each feed is capped so no single voice dominates.
-2. **Script** — the stories become a two-host conversation (NotebookLM-style). If Claude
-   API credentials are available (`ANTHROPIC_API_KEY` or an `ant auth login` profile),
-   Claude writes a curated, natural back-and-forth. Without credentials a template
-   writer produces an alternating readout instead.
+2. **Script** — the stories become a two-host conversation (NotebookLM-style). The free
+   built-in writer curates deterministically: it drops subscription-drive and link-only
+   posts, leads with newsletter features, trims excerpts at sentence boundaries, and
+   finishes with a "quick hits" segment of social posts read in the journalists' own
+   words. (Optionally, setting `ANTHROPIC_API_KEY` swaps in an AI-written script — never
+   required.)
 3. **Audio** — each host's turns are synthesized with their own Microsoft Edge neural
    voice via `edge-tts` (free, no key, no ffmpeg) and stitched into `episode.mp3`.
 4. **Publish** — the episode is copied into `docs/`, and the site index + podcast RSS
@@ -48,21 +54,6 @@ git commit -m "Episode YYYY-MM-DD"
 git push
 ```
 
-## One-time GitHub Pages setup
-
-1. Create a **public** repository on GitHub (e.g. `true-news-podcast`).
-2. From this folder:
-   ```powershell
-   git remote add origin https://github.com/YOURUSER/true-news-podcast.git
-   git push -u origin main
-   ```
-3. On GitHub: **Settings -> Pages -> Source: Deploy from a branch -> Branch: `main`,
-   folder: `/docs`** -> Save.
-4. Your site appears at `https://YOURUSER.github.io/true-news-podcast/` within a minute
-   or two.
-5. Put that URL into `site_url` in `sources.yaml`, run `python -m truenews` once more,
-   and push — this makes the RSS feed (`feed.xml`) subscribable in podcast apps.
-
 ## Choosing voices
 
 Run `python -m truenews --sample-voices`, listen to the MP3s in
@@ -87,14 +78,9 @@ Edit `sources.yaml`. Each entry is either:
 
 Dead or unreachable feeds are logged and skipped — they never break a run.
 
-## Better episodes with Claude
+## Optional: AI-written scripts
 
-The template writer reads items verbatim, so promo posts and off-topic items get
-through. With Claude API credentials set, the script writer instead curates: it groups
-related stories, drops noise, orders by weight, and writes a natural conversation —
-while keeping strict per-journalist attribution and a no-editorializing rule
-(see `SYSTEM_PROMPT` in [script_writer.py](truenews/script_writer.py)).
-
-```powershell
-$env:ANTHROPIC_API_KEY = "sk-ant-..."   # per session, or set it in Windows env vars
-```
+Everything works for free. If you ever want more natural banter (hosts reacting to each
+other, grouping related stories across sources), setting `ANTHROPIC_API_KEY` switches
+the script writer to Claude — but this is a paid API and entirely optional. Without it,
+the free built-in writer is always used.
