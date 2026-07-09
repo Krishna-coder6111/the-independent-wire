@@ -10,6 +10,9 @@ class Story:
     text: str
     link: str
     published: datetime
+    # "article" = newsletter/site piece, "shared" = social post linking an article,
+    # "post" = substantive standalone social commentary
+    kind: str = "article"
 
     def to_dict(self) -> dict:
         d = asdict(self)

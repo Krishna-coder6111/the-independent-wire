@@ -31,12 +31,52 @@ def _clean_html(raw: str) -> str:
     return _WS_RE.sub(" ", text).strip()
 
 
+_MENTION_RE = re.compile(r"@[\w.-]*")
+_CAPTION_RE = re.compile(
+    r"(photo by|getty images|via getty|via anadolu|via reuters|via ap\b|"
+    r"screenshot|illustration by|photograph by)",
+    re.IGNORECASE,
+)
+_EDITOR_NOTE_RE = re.compile(r"editor['’]?s note:\s*", re.IGNORECASE)
+_SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+_CTA_PHRASE_RE = re.compile(
+    r"\b(subscribe now|share this post|upgrade to paid|leave a comment|"
+    r"read in app|give a gift subscription)\b[.!]?\s*",
+    re.IGNORECASE,
+)
+_PROMO_SENT_RE = re.compile(
+    r"(reader-funded|paid subscriber|tax-deductible|donation|pledge your support|"
+    r"without your support|support (our|this|independent) (work|journalism|newsletter)|"
+    r"consider (subscribing|becoming|supporting)|free and paid subscription)",
+    re.IGNORECASE,
+)
+
+
 def clean_for_speech(text: str) -> str:
-    """Strip URLs and emoji so TTS doesn't read them out."""
+    """Strip URLs, @-handles, and emoji so TTS doesn't read them out."""
     text = _HTTP_URL_RE.sub("", text)
     text = _BARE_URL_RE.sub("", text)
+    text = _MENTION_RE.sub("", text)
     text = _EMOJI_RE.sub("", text)
-    return _WS_RE.sub(" ", text).strip()
+    text = _WS_RE.sub(" ", text).strip()
+    return text.rstrip("—-– ").strip()
+
+
+def strip_boilerplate(text: str) -> str:
+    """Remove photo captions, subscribe buttons, fundraising asks, and
+    editor's-note prefixes from article excerpts."""
+    text = _EDITOR_NOTE_RE.sub("", text)
+    text = _CTA_PHRASE_RE.sub("", text)  # button labels glued into the text flow
+    sentences = _SENT_SPLIT_RE.split(text)
+    drop = set()
+    for i, sentence in enumerate(sentences):
+        if _PROMO_SENT_RE.search(sentence):
+            drop.add(i)
+        if _CAPTION_RE.search(sentence):
+            drop.add(i)
+            if i > 0:
+                drop.add(i - 1)  # the caption text usually precedes its credit line
+    return " ".join(s for i, s in enumerate(sentences) if i not in drop).strip()
 
 
 def _is_noise(story: Story) -> bool:
@@ -66,21 +106,38 @@ def fetch_rss(source: dict, limit: int) -> list[Story]:
         if not ts:
             continue
         published = datetime.fromtimestamp(time.mktime(ts), tz=timezone.utc)
+        # Prefer the full article body when the feed provides it; a couple of
+        # opening sentences beats a one-line subtitle for spoken summaries.
         summary = _clean_html(entry.get("summary", ""))
+        content_list = entry.get("content") or []
+        full = _clean_html(content_list[0].get("value", "")) if content_list else ""
+        body = strip_boilerplate(full if len(full) > len(summary) else summary)
         stories.append(
             Story(
                 author=source["name"],
                 outlet=source["outlet"],
                 title=_clean_html(entry.get("title", "Untitled")),
-                text=summary[:900],
+                text=body[:1200],
                 link=entry.get("link", source["url"]),
                 published=published,
+                kind="article",
             )
         )
     return stories
 
 
+_FIRST_PERSON_RE = re.compile(r"\b(i|i'm|i've|i'll|my|me|mine|we're)\b", re.IGNORECASE)
+_MIN_POST_CHARS = 180  # standalone posts must be substantive, not one-line snark
+
+
 def fetch_bluesky(source: dict, limit: int) -> list[Story]:
+    """Keep only posts with reporting value.
+
+    - Posts sharing an external article ("shared"): the linked piece's title and
+      description become the story - this is journalists distributing actual work.
+    - Standalone posts ("post") survive only if they are long, non-personal
+      commentary. Photo captions, life updates, and quips are dropped here.
+    """
     resp = requests.get(
         BSKY_FEED_URL,
         params={"actor": source["handle"], "limit": 40, "filter": "posts_no_replies"},
@@ -94,22 +151,33 @@ def fetch_bluesky(source: dict, limit: int) -> list[Story]:
             continue
         post = item.get("post", {})
         record = post.get("record", {})
-        text = (record.get("text") or "").strip()
-        if not text:
-            continue
-        # Pull in the title of a linked article when the post embeds one
+        text = clean_for_speech((record.get("text") or "").strip())
         embed = record.get("embed") or {}
         external = embed.get("external") or {}
-        title = external.get("title") or (text[:110] + ("..." if len(text) > 110 else ""))
+        ext_title = clean_for_speech(_clean_html(external.get("title") or ""))
+        ext_desc = clean_for_speech(_clean_html(external.get("description") or ""))
+
+        if ext_title:
+            kind = "shared"
+            title = ext_title
+            body = strip_boilerplate(ext_desc if len(ext_desc) >= 40 else text)
+        elif len(text) >= _MIN_POST_CHARS and not _FIRST_PERSON_RE.search(text):
+            kind = "post"
+            title = text[:110] + ("..." if len(text) > 110 else "")
+            body = text
+        else:
+            continue  # caption, quip, or personal post - no reporting value
+
         rkey = post.get("uri", "").rsplit("/", 1)[-1]
         stories.append(
             Story(
                 author=source["name"],
                 outlet=source["outlet"],
-                title=clean_for_speech(_clean_html(title)),
-                text=clean_for_speech(text)[:900],
+                title=title,
+                text=body[:900],
                 link=f"https://bsky.app/profile/{source['handle']}/post/{rkey}",
                 published=_parse_iso(record.get("createdAt")),
+                kind=kind,
             )
         )
     return stories

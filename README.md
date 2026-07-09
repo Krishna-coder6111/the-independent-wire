@@ -1,12 +1,23 @@
-# True News Podcast
+# The Independent Wire
 
 Turns recent reporting from independent and investigative journalists — pulled from
 their social media (Bluesky) and newsletters (RSS) — into a two-host conversational
 podcast episode, published to a GitHub Pages site with a subscribable RSS feed.
 **100% free: no API keys, no subscriptions, no ffmpeg.**
 
-- **Listen:** https://krishna-coder6111.github.io/true-news-podcast/
-- **Subscribe in a podcast app:** https://krishna-coder6111.github.io/true-news-podcast/feed.xml
+- **Listen:** https://krishna-coder6111.github.io/the-independent-wire/
+- **Subscribe in a podcast app:** https://krishna-coder6111.github.io/the-independent-wire/feed.xml
+
+A new episode publishes itself every morning via GitHub Actions
+([daily-episode.yml](.github/workflows/daily-episode.yml), 11:30 UTC).
+
+## Pausing or stopping the daily episode
+
+- **Pause:** on GitHub go to **Actions -> Daily episode -> "..." menu -> Disable
+  workflow**. Re-enable the same way whenever you want it back.
+- **Stop permanently:** delete `.github/workflows/daily-episode.yml` and push.
+- Episodes already published stay on the site either way; delete folders under
+  `docs/episodes/` and push to take them down.
 
 ## How it works
 
@@ -19,11 +30,13 @@ sources.yaml -> fetch (Bluesky + RSS) -> two-host script -> MP3 (edge-tts) -> do
    RSS feeds. Items outside the lookback window are dropped, reposts and duplicates are
    skipped, and each feed is capped so no single voice dominates.
 2. **Script** — the stories become a two-host conversation (NotebookLM-style). The free
-   built-in writer curates deterministically: it drops subscription-drive and link-only
-   posts, leads with newsletter features, trims excerpts at sentence boundaries, and
-   finishes with a "quick hits" segment of social posts read in the journalists' own
-   words. (Optionally, setting `ANTHROPIC_API_KEY` swaps in an AI-written script — never
-   required.)
+   built-in writer curates deterministically: social posts only qualify if they share an
+   actual article or are substantive non-personal commentary (captions, quips, promo,
+   and life updates are dropped); article excerpts come from the piece's opening
+   paragraphs with photo credits and subscribe buttons stripped; and related items are
+   grouped into segments, with the co-host adding "X is on the same story" cross-
+   references. (Optionally, setting `ANTHROPIC_API_KEY` swaps in an AI-written script —
+   never required.)
 3. **Audio** — each host's turns are synthesized with their own Microsoft Edge neural
    voice via `edge-tts` (free, no key, no ffmpeg) and stitched into `episode.mp3`.
 4. **Publish** — the episode is copied into `docs/`, and the site index + podcast RSS
