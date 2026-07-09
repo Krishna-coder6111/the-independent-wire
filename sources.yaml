@@ -1,0 +1,89 @@
+# Feeds for independent / investigative journalists.
+# Two source types are supported:
+#   - type: bluesky   -> public Bluesky posts (no API key needed), set `handle`
+#   - type: rss       -> newsletter/site RSS feed, set `url`
+# Add, remove, or swap entries freely - the pipeline handles dead feeds gracefully.
+
+podcast_name: "The Independent Wire"
+window_hours: 36          # only include items published within this window
+max_items_per_source: 4   # cap per feed so one prolific poster doesn't dominate
+max_stories: 14           # overall cap fed to the script writer
+
+# Two-host episode format. Audition alternatives with: python -m truenews --sample-voices
+host_a_name: "Alex"
+host_a_voice: "en-US-AndrewMultilingualNeural"
+host_b_name: "Sam"
+host_b_voice: "en-US-EmmaMultilingualNeural"
+
+# Public URL of the GitHub Pages site (no trailing slash). Needed for the podcast
+# RSS feed so podcast apps can find the audio. Example:
+#   site_url: "https://YOURUSER.github.io/true-news-podcast"
+site_url: ""
+
+sources:
+  # --- Newsletters / sites (RSS) ---
+  - name: Judd Legum
+    outlet: Popular Information
+    type: rss
+    url: https://popular.info/feed
+
+  - name: Ken Klippenstein
+    outlet: Ken Klippenstein (Substack)
+    type: rss
+    url: https://www.kenklippenstein.com/feed
+
+  - name: Radley Balko
+    outlet: The Watch
+    type: rss
+    url: https://radleybalko.substack.com/feed
+
+  - name: Matt Taibbi
+    outlet: Racket News
+    type: rss
+    url: https://www.racket.news/feed
+
+  - name: Seymour Hersh
+    outlet: Seymour Hersh (Substack)
+    type: rss
+    url: https://seymourhersh.substack.com/feed
+
+  - name: Bellingcat team
+    outlet: Bellingcat
+    type: rss
+    url: https://www.bellingcat.com/feed/
+
+  - name: The Lever team
+    outlet: The Lever
+    type: rss
+    url: https://www.levernews.com/rss/
+
+  - name: Drop Site team
+    outlet: Drop Site News
+    type: rss
+    url: https://www.dropsitenews.com/feed
+
+  # --- Social media (Bluesky public API) ---
+  - name: Judd Legum
+    outlet: Bluesky
+    type: bluesky
+    handle: juddlegum.bsky.social
+
+  - name: Ken Klippenstein
+    outlet: Bluesky
+    type: bluesky
+    handle: kenklippenstein.bsky.social
+
+  - name: Marisa Kabas
+    outlet: Bluesky
+    type: bluesky
+    handle: marisakabas.bsky.social
+
+  - name: Aaron Rupar
+    outlet: Bluesky
+    type: bluesky
+    handle: atrupar.com
+
+  - name: Bellingcat
+    outlet: Bluesky
+    type: bluesky
+    handle: bellingcat.com
