@@ -16,9 +16,8 @@ host_b_name: "Sam"
 host_b_voice: "en-US-EmmaMultilingualNeural"
 
 # Public URL of the GitHub Pages site (no trailing slash). Needed for the podcast
-# RSS feed so podcast apps can find the audio. Example:
-#   site_url: "https://YOURUSER.github.io/true-news-podcast"
-site_url: ""
+# RSS feed so podcast apps can find the audio.
+site_url: "https://krishna-coder6111.github.io/true-news-podcast"
 
 sources:
   # --- Newsletters / sites (RSS) ---

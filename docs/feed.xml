@@ -2,17 +2,17 @@
 <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
 <channel>
   <title>The Independent Wire</title>
-  <link>.</link>
+  <link>https://krishna-coder6111.github.io/true-news-podcast</link>
   <language>en-us</language>
   <description>Automated daily round-up of reporting from independent and investigative journalists, with on-air attribution and source links.</description>
   <itunes:author>Automated round-up</itunes:author>
-  <lastBuildDate>Thu, 09 Jul 2026 03:42:54 +0000</lastBuildDate>
+  <lastBuildDate>Thu, 09 Jul 2026 03:51:29 +0000</lastBuildDate>
   <item>
     <title>The Independent Wire — July 09, 2026</title>
     <description>14 stories from independent journalists including Aaron Rupar, Drop Site team, Judd Legum, Ken Klippenstein, Marisa Kabas, Matt Taibbi. Full source links on the episode page.</description>
-    <enclosure url="/episodes/2026-07-09/episode.mp3" length="1527840" type="audio/mpeg"/>
+    <enclosure url="https://krishna-coder6111.github.io/true-news-podcast/episodes/2026-07-09/episode.mp3" length="1487808" type="audio/mpeg"/>
     <guid isPermaLink="false">2026-07-09</guid>
-    <pubDate>Thu, 09 Jul 2026 03:42:30 +0000</pubDate>
+    <pubDate>Thu, 09 Jul 2026 03:51:22 +0000</pubDate>
   </item>
 </channel>
 </rss>

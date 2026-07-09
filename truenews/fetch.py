@@ -14,12 +14,40 @@ USER_AGENT = "true-news-podcast/1.0 (personal news-to-podcast tool)"
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
+_HTTP_URL_RE = re.compile(r"https?://\S+")
+_BARE_URL_RE = re.compile(r"\b[\w.-]+\.(?:com|co|org|net|news|info|app|social|io|us|uk)(?:/\S*)?\b")
+_EMOJI_RE = re.compile("[\U0001F000-\U0001FAFF☀-➿⬀-⯿️‍]+")
+# Bluesky posts that are fundraising/self-promo rather than reporting
+_PROMO_RE = re.compile(
+    r"\b(subscri\w+|upgrad\w+|paywall\w*|pledge\w*|donat\w+|tip jar|"
+    r"merch|discount\w*|free trial|founding member)\b",
+    re.IGNORECASE,
+)
 
 
 def _clean_html(raw: str) -> str:
     text = _TAG_RE.sub(" ", raw or "")
     text = html.unescape(text)
     return _WS_RE.sub(" ", text).strip()
+
+
+def clean_for_speech(text: str) -> str:
+    """Strip URLs and emoji so TTS doesn't read them out."""
+    text = _HTTP_URL_RE.sub("", text)
+    text = _BARE_URL_RE.sub("", text)
+    text = _EMOJI_RE.sub("", text)
+    return _WS_RE.sub(" ", text).strip()
+
+
+def _is_noise(story: Story) -> bool:
+    """Filter social posts with no reporting value (promo, link-only one-liners)."""
+    if story.outlet.lower() != "bluesky":
+        return False  # newsletter items are actual articles - keep them
+    if _PROMO_RE.search(story.text):
+        return True
+    if len(clean_for_speech(story.text)) < 60:  # link drops and one-word reactions
+        return True
+    return False
 
 
 def _parse_iso(ts: str) -> datetime:
@@ -78,8 +106,8 @@ def fetch_bluesky(source: dict, limit: int) -> list[Story]:
             Story(
                 author=source["name"],
                 outlet=source["outlet"],
-                title=_clean_html(title),
-                text=text[:900],
+                title=clean_for_speech(_clean_html(title)),
+                text=clean_for_speech(text)[:900],
                 link=f"https://bsky.app/profile/{source['handle']}/post/{rkey}",
                 published=_parse_iso(record.get("createdAt")),
             )
@@ -109,9 +137,10 @@ def collect_stories(cfg) -> tuple[list[Story], list[str]]:
             continue
 
         recent = [s for s in fetched if s.published >= cutoff]
-        recent.sort(key=lambda s: s.published, reverse=True)
+        filtered = [s for s in recent if not _is_noise(s)]
+        filtered.sort(key=lambda s: s.published, reverse=True)
         kept = 0
-        for story in recent:
+        for story in filtered:
             if kept >= cfg.max_items_per_source:
                 break
             key = (story.author, story.title.lower()[:80])
@@ -120,7 +149,11 @@ def collect_stories(cfg) -> tuple[list[Story], list[str]]:
             seen_keys.add(key)
             all_stories.append(story)
             kept += 1
-        log.append(f"OK    {label}: {len(fetched)} fetched, {kept} kept in window")
+        noise = len(recent) - len(filtered)
+        log.append(
+            f"OK    {label}: {len(fetched)} fetched, {kept} kept"
+            + (f", {noise} promo/noise dropped" if noise else "")
+        )
 
     all_stories.sort(key=lambda s: s.published, reverse=True)
     return all_stories[: cfg.max_stories], log

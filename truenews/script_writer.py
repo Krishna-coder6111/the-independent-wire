@@ -1,12 +1,14 @@
 """Turn the collected stories into a two-host conversational podcast script.
 
 The script format is one dialogue turn per line, tagged `A:` or `B:`.
-Uses the Claude API when credentials are available (ANTHROPIC_API_KEY or an
-`ant auth login` profile); otherwise falls back to a deterministic template
-so the pipeline always produces an episode.
+
+The default writer is free and fully local. If ANTHROPIC_API_KEY (or
+ANTHROPIC_AUTH_TOKEN) is set, an optional Claude-written script is used
+instead - but nothing here ever requires a paid API.
 """
 import itertools
 import json
+import os
 import re
 from datetime import datetime
 
@@ -41,9 +43,10 @@ Content rules:
 """
 
 _TURN_RE = re.compile(r"^([AB])\s*:\s*(.*)$")
+_SENT_RE = re.compile(r"(?<=[.!?])\s+")
 
-# Canned co-host reactions for the no-API template writer. These are spoken by
-# the host who presents the NEXT story, so they must not address the other host.
+# Spoken by the host who presents the NEXT feature, so they must not
+# address the other host.
 _HANDOFFS = [
     "Interesting. Here's my next one.",
     "Worth keeping an eye on. Moving along.",
@@ -51,6 +54,22 @@ _HANDOFFS = [
     "That one's worth a full read. Next up.",
     "Good to know. Here's what I've got next.",
 ]
+
+
+def _claude_available() -> bool:
+    return bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
+
+
+def _trim_sentences(text: str, max_chars: int = 380) -> str:
+    """Cut an excerpt at a sentence boundary instead of mid-thought."""
+    out = ""
+    for sentence in _SENT_RE.split(text):
+        if not sentence:
+            continue
+        if out and len(out) + len(sentence) + 1 > max_chars:
+            break
+        out = f"{out} {sentence}".strip()
+    return out or text[:max_chars].rsplit(" ", 1)[0]
 
 
 def parse_dialogue(script: str) -> list[tuple[str, str]]:
@@ -64,7 +83,6 @@ def parse_dialogue(script: str) -> list[tuple[str, str]]:
         if m:
             turns.append((m.group(1), m.group(2).strip()))
         elif turns:
-            # continuation of the previous turn
             speaker, text = turns[-1]
             turns[-1] = (speaker, f"{text} {line}")
     return [(s, t) for s, t in turns if t]
@@ -97,48 +115,75 @@ def write_script_with_claude(stories, cfg, episode_date: datetime) -> str:
     return next(b.text for b in message.content if b.type == "text").strip()
 
 
-def write_script_template(stories, cfg, episode_date: datetime) -> str:
-    """No-API fallback: alternating hosts read the items out with attribution."""
+def write_script_builtin(stories, cfg, episode_date: datetime) -> str:
+    """The free writer: features from newsletters first, quick hits from social after."""
     date_str = episode_date.strftime("%A, %B %d, %Y")
     a, b = cfg.host_a_name, cfg.host_b_name
+    features = [s for s in stories if s.outlet.lower() != "bluesky"]
+    quick_hits = [s for s in stories if s.outlet.lower() == "bluesky"]
+
+    teaser_bits = []
+    if features:
+        outlets = sorted({s.outlet for s in features})
+        teaser_bits.append(
+            f"{len(features)} new pieces from outlets like {', '.join(outlets[:3])}"
+        )
+    if quick_hits:
+        teaser_bits.append(f"{len(quick_hits)} quick hits from journalists on social media")
+
     lines = [
         f"A: Welcome to {cfg.podcast_name} for {date_str}. I'm {a}.",
-        f"B: And I'm {b}. Today we're rounding up {len(stories)} recent items from "
-        f"independent and investigative journalists. Every story is attributed to the "
-        f"journalist who reported it. Let's get into it.",
+        f"B: And I'm {b}. On today's episode: {' and '.join(teaser_bits)}. "
+        f"As always, every story is credited to the journalist who reported it. "
+        f"Let's get into it.",
     ]
+
     handoffs = itertools.cycle(_HANDOFFS)
     speakers = itertools.cycle(["A", "B"])
-    for story in stories:
+    for i, story in enumerate(features):
         speaker = next(speakers)
-        other = "B" if speaker == "A" else "A"
         when = story.published.strftime("%B %d")
-        if story.outlet.lower() == "bluesky":
-            intro = f"Posting on Bluesky on {when}, {story.author} wrote:"
-        else:
-            intro = f"From {story.author} at {story.outlet}, published {when}: {story.title}."
-        body = story.text if story.text else story.title
-        lines.append(f"{speaker}: {intro} {body}")
-        lines.append(f"{other}: {next(handoffs)}")
-    lines.pop()  # drop the trailing handoff after the last story
+        lead = "" if i == 0 else f"{next(handoffs)} "
+        body = _trim_sentences(story.text) if story.text else ""
+        headline = (
+            f"{lead}From {story.author} at {story.outlet}, published {when}: "
+            f"{story.title}."
+        )
+        lines.append(f"{speaker}: {headline} {body}".rstrip())
+
+    if quick_hits:
+        speaker = next(speakers)
+        lines.append(
+            f"{speaker}: Now for some quick hits. These are recent posts from "
+            f"independent journalists on Bluesky, in their own words."
+        )
+        for story in quick_hits:
+            speaker = next(speakers)
+            body = _trim_sentences(story.text, max_chars=320)
+            lines.append(f"{speaker}: {story.author} wrote: {body}")
+
     lines.append(
         f"A: And that's everything for this edition of {cfg.podcast_name}. Everything "
         f"you heard comes directly from the cited journalists' own feeds and newsletters."
     )
-    lines.append(f"B: Links to every story are in the show notes. Thanks for listening.")
+    lines.append(
+        f"B: Links to every story are in the show notes. Support the journalists whose "
+        f"work you heard today. Thanks for listening."
+    )
     return "\n".join(lines)
 
 
 def write_script(stories, cfg, episode_date: datetime) -> tuple[list[tuple[str, str]], str]:
     """Returns (dialogue turns, writer_used)."""
-    try:
-        raw = write_script_with_claude(stories, cfg, episode_date)
-        writer = "claude"
-    except Exception as exc:
-        print(f"  Claude script writer unavailable ({type(exc).__name__}: {exc})")
-        print("  Falling back to the template writer.")
-        raw = write_script_template(stories, cfg, episode_date)
-        writer = "template"
+    raw, writer = None, "builtin (free)"
+    if _claude_available():
+        try:
+            raw = write_script_with_claude(stories, cfg, episode_date)
+            writer = "claude"
+        except Exception as exc:
+            print(f"  Claude writer failed ({type(exc).__name__}: {exc}); using the free writer.")
+    if raw is None:
+        raw = write_script_builtin(stories, cfg, episode_date)
     turns = parse_dialogue(raw)
     if not turns:  # a writer produced untagged text; read it all as host A
         turns = [("A", raw)]
