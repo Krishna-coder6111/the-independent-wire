@@ -6,7 +6,14 @@
   <language>en-us</language>
   <description>Automated daily round-up of reporting from independent and investigative journalists, with on-air attribution and source links.</description>
   <itunes:author>Automated round-up</itunes:author>
-  <lastBuildDate>Mon, 20 Jul 2026 13:27:56 +0000</lastBuildDate>
+  <lastBuildDate>Tue, 21 Jul 2026 12:56:38 +0000</lastBuildDate>
+  <item>
+    <title>The Independent Wire — July 21, 2026</title>
+    <description>14 stories from independent journalists including Aaron Rupar, Bellingcat, Drop Site team, Judd Legum, Ken Klippenstein, Matt Taibbi. Full source links on the episode page.</description>
+    <enclosure url="https://krishna-coder6111.github.io/the-independent-wire/episodes/2026-07-21/episode.mp3" length="1978560" type="audio/mpeg"/>
+    <guid isPermaLink="false">2026-07-21</guid>
+    <pubDate>Tue, 21 Jul 2026 12:56:08 +0000</pubDate>
+  </item>
   <item>
     <title>The Independent Wire — July 20, 2026</title>
     <description>5 stories from independent journalists including Bellingcat, Judd Legum, Matt Taibbi, The Lever team. Full source links on the episode page.</description>
